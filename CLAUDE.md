@@ -40,9 +40,13 @@ commit, comment, and log entry as if the hiring team is reading it.
 
 ```
 ./gradlew test                     # unit + parity tests
-./gradlew run                      # Ktor server on :8080
+./gradlew run                      # Ktor server on :8080 (blocking — Ctrl+C to stop)
 node oracle/generate-golden.mjs    # regenerate golden.json (rarely needed)
 ```
+
+`./gradlew run` blocks in the foreground serving requests; it will not reach 100% or
+return until stopped. Verify against `http://localhost:8080`, not whatever URL an
+editor's port-forwarding panel suggests — those can point at the wrong port.
 
 CI (GitHub Actions) runs `./gradlew test` on every push. A red build never gets a feature
 commit on top; fix it first.
