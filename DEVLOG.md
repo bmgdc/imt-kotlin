@@ -130,3 +130,52 @@ porting each component's unit tests before moving on. No parity suite yet.
 **Next step:** Wire `ParityTest.kt`: load `oracle/golden.json`, map the JS naming
 (`youngun*`, string purposes/locations, null-for-Infinity) at the boundary, run all
 11,640 cases through `calculateImt`, and compare exactly.
+
+## 2026-07-15 — Session 03: Parity suite
+
+**Goal:** Per `prompts/03-parity-suite.md`: wire `ParityTest.kt` as a JUnit 5
+`@TestFactory` — one `DynamicTest` per golden case, named after the case's
+self-describing id — decode golden.json at the boundary, run every case through
+`ImtEngine`, and assert exact equality on every rounded output field. Add
+`testLogging` to `build.gradle.kts` so results print to the console. Run once,
+record the count, commit. No fixing failures this session.
+
+**What happened:**
+
+- `ParityTest.kt` (package-less, `src/test/kotlin/`, per CLAUDE.md's architecture
+  listing) decodes golden.json via kotlinx.serialization (already on the test
+  classpath transitively — no new dependency needed), maps `youngun*` → `jovem*`
+  and string purpose/location back to the `Purpose`/`Location` enums, and asserts
+  every field of `total` and every `breakdown[]` entry (including `status` and
+  `meta`) with `assertEquals` per field so a failure names its exact mismatched
+  field, not just "objects differ".
+- Null-to-`Infinity` decoding is implemented as the docs require (`Double?.orInfinity()`
+  at every numeric field), even though — confirmed by grep — no value in the current
+  golden.json is ever actually null; the current price/rate/amount domain is always
+  finite. It's boundary discipline per CLAUDE.md's convention, not dead code chasing
+  a real case today.
+- `build.gradle.kts`: added `testLogging { events("passed", "failed"); exceptionFormat
+  = FULL }` and a `goldenJsonPath` system property pointing at
+  `rootProject.file("oracle/golden.json")`, so the suite doesn't depend on the
+  invoking shell's working directory.
+- **Result: 11,640/11,640 golden cases passed on the first run.** Full suite:
+  11,685 tests total (11,640 parity + 45 unit), 0 failures.
+- Before trusting an all-green run at this scale, ran a negative control: temporarily
+  added `+ 999.0` to one expected value and reran — all 11,640 cases failed as
+  expected, confirming the harness actually exercises the assertions rather than
+  passing vacuously. Reverted, reran clean, then committed.
+
+**Decisions / notes:**
+
+- No parity failures to fix — the domain port from Session 02 achieved full parity
+  against the oracle on the first attempt. The CLAUDE.md protocol for the parity-loop
+  ("track failing-case count, stop after two stuck attempts") is not engaged this
+  session since there was nothing to iterate on.
+- Per-field assertions (not a single deep-equals) were chosen deliberately: with
+  11,640 cases, a failure needs to self-diagnose from the test name + assertion
+  message alone without opening a debugger.
+
+**Next step:** No domain work is pending parity-wise. Candidates for the next
+session: wire the Ktor API routes (`POST /api/imt`, `GET /api/tables/{year}/{location}`)
+against the now-verified engine, or start the static frontend per
+`frontend-reference/NOTES.md`.
