@@ -238,3 +238,54 @@ golden.json cross-check, then the static frontend emulating
 API, and frontend. Remaining housekeeping candidates: README rewrite per the
 honesty rules (plain statement of provenance and process), and a final
 `./gradlew test` + `run` pass on a clean checkout.
+
+## 2026-07-15 — Session 05: Docker + README writeup
+
+**Goal:** Per `prompts/05-writeup.md`: a production multi-stage Dockerfile
+(server reads `PORT`, default 8080) plus `.dockerignore`, verified to build and
+serve locally; then the hiring-team README per CLAUDE.md's honesty rules; final
+DEVLOG entry.
+
+**What happened:**
+
+- `Server.kt` now reads `PORT` (`System.getenv("PORT")?.toIntOrNull() ?: 8080`);
+  the tests exercise `module()` directly so they're unaffected.
+- Dockerfile: `gradle:8.14.2-jdk21` build stage → `eclipse-temurin:21-jre`
+  runtime, non-root user, `installDist` (no tests in the image — CI covers
+  those; keeps the build fast and lets `.dockerignore` drop the 11 MB
+  golden.json). The build stage's JDK 21 means the Kotlin toolchain resolves
+  without the foojay download. Final image 334 MB.
+- Proxy handling for the sandbox stayed **out** of the committed file: a
+  `GRADLE_OPTS` build arg (empty by default) carries any proxy JVM flags, so the
+  Dockerfile is credential-free and builds unchanged on a normal network / CI.
+- Verified end to end: image builds; `docker run -e PORT=9000` container answers
+  `/health`, serves `index.html` + `app.js`, returns the known-value POST
+  (`24118.33 / 3200 / 27318.33`, matching the golden case and the route test)
+  and the tables GET (`nonResidentRate 0.075`, unbounded `upTo` as `null`), and
+  400s on an unknown year.
+- README rewritten for a hiring-team reader per the honesty rules: states plainly
+  that the domain logic is a port of my own JS (vendored read-only in `oracle/`),
+  driven and reviewed with Claude Code; provenance table; the golden-master
+  approach and the **11,640**-case count; why `Double` (bit-for-bit parity with
+  the JS float/rounding semantics) rather than `BigDecimal`; links to `prompts/`,
+  `DEVLOG.md`, and CI; Gradle + Docker run instructions; live-URL placeholder. No
+  invented metrics.
+- Final clean `./gradlew clean test`: **BUILD SUCCESSFUL, 11,696 tests, 0
+  failures** (11,640 parity + 56 unit/route/static).
+
+**Surprises / notes:**
+
+- A `./gradlew test` run failed not on a test but on a file-hash-cache lock held
+  by "another Gradle instance" (PID 836916). Root cause: Session 04's unsandboxed
+  `./gradlew run` server attempts had left a live Gradle daemon, its wrapper, and
+  the Netty server (still on :8080) orphaned — `TaskStop` hadn't reaped the whole
+  tree. Killed all three; the lock cleared and the suite ran green. Worth
+  remembering: background `./gradlew run` should be torn down explicitly, not just
+  stopped.
+- npm/Chrome/Docker sandbox constraints from Session 04 recurred; Docker needed
+  `--network host` + the `GRADLE_OPTS` proxy arg to reach Maven Central during the
+  build, run outside the harness sandbox.
+
+**State:** The port is complete and packaged — domain (11,640-case parity), API,
+frontend, Docker image, README, CI. The only open placeholder is the live
+deployment URL in the README, to be filled once deployed.
