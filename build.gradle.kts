@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+
 plugins {
     kotlin("jvm") version "2.1.21"
     kotlin("plugin.serialization") version "2.1.21"
@@ -34,4 +36,9 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("goldenJsonPath", rootProject.file("oracle/golden.json").absolutePath)
+    testLogging {
+        events("passed", "failed")
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
