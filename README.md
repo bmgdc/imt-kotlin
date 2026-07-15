@@ -6,14 +6,14 @@ JavaScript calculator, built end to end with Claude Code as a **documented** exe
 agent-driven development — the prompts and the development log are part of the deliverable,
 not an afterthought.
 
-**Live demo:** _<!-- TODO: deployment URL -->_
+**Live demo:** https://imt-kotlin.fly.dev/
 
 ---
 
 ## What this is (and how it was built)
 
 The domain logic is a port of **my own prior JavaScript implementation** from another
-project (`realtor_blueprint`). That reference engine is vendored read-only under
+project (a realtor's personal website). That reference engine is vendored read-only under
 [`oracle/`](oracle/); the original React frontend it shipped with is vendored, also
 read-only, under [`frontend-reference/`](frontend-reference/). Nothing in either directory
 was rewritten — they are the source of truth the port is measured against.
@@ -23,7 +23,7 @@ was written by **Claude Code, driven and reviewed by me (Bruno)**, one session a
 Each session began from a prompt committed verbatim before any work started; the running
 narrative (decisions, dead ends, surprises) is in [`DEVLOG.md`](DEVLOG.md).
 
-Being explicit, per this repo's honesty rules: the correctness of the tax math is not an
+Being explicit, per this repository's honesty rules: the correctness of the tax math is not an
 original claim — it is inherited from the reference implementation and **proven equal to
 it** by the parity suite described below. The value added here is the port, the
 server-side architecture, and the test harness that guarantees the port did not drift.
@@ -157,5 +157,5 @@ This repository is meant to be read as much as run. The intended trail:
    and the dead ends (kept in, not tidied away).
 3. The commit history — small, imperative commits, one logical step at a time.
 
-No benchmarks or process metrics are invented anywhere in this repo; the DEVLOG records the
+No benchmarks or process metrics are invented anywhere in this repository; the DEVLOG records the
 work as it happened, including where it went sideways.
