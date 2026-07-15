@@ -87,3 +87,46 @@ and commit the resulting `oracle/golden.json`.
 **Next step:** Port the domain: `Rounding.kt`, then `Tables.kt` (enrichment + islands
 scaling), `TaxCalculator.kt`, `ImtEngine.kt`, with ported unit tests — then wire
 `ParityTest.kt` against golden.json.
+
+## 2026-07-15 — Session 02: Domain port
+
+**Goal:** Per `prompts/02-domain-port.md`: port the domain to
+`src/main/kotlin/imt/` in order (Rounding → Tables → TaxCalculator → ImtEngine),
+porting each component's unit tests before moving on. No parity suite yet.
+
+**What happened:**
+
+- One commit per component, tests green at each step. Final count: 45 tests
+  (3 rounding, 5 tables, 6 calculator, 30 engine, 1 health), 0 failures.
+- `Rounding.kt`: `roundCurrency` mirrors the JS epsilon method on `roundToLong`
+  (ties toward +∞), plus `jsMathRound` for the islands ×1.25 whole-euro rounding.
+  The oracle has no tests for `roundCurrency`, so RoundingTest's expectations were
+  pinned by running the oracle in Node first — no guessed float values.
+- `Tables.kt`: raw 2024–2026 data transcribed verbatim; enrichment and islands
+  scaling keep the JS operation order (scale first, then enrich). `youngun` →
+  `jovem` renames applied (`jovemStampDutyExemptionThreshold`, `isJovemEligible`,
+  `isJovemImt`, `isJovemStampDuty`); `nonResidentRate` is a nullable Double —
+  null meaning "rule not in force", mirroring the JS property-absence idiom.
+- `TaxCalculator.kt` and `ImtEngine.kt`: line-for-line ports; the engine keeps the
+  JS branch order and the exact rounding call sites. CIMT Art. 17.º citations
+  (n.º 3, n.º 4, n.º 10–12, DL 97/2026) carried into KDoc.
+- All exact `toBe` expectations from the JS tests (e.g. 3037.68 / 12962.32 /
+  18506.5) pass under strict Double equality in Kotlin — IEEE 754 arithmetic is
+  identical on the JVM, an encouraging signal for the golden parity run.
+
+**Decisions / notes:**
+
+- Purposes are an enum (`Purpose.HPP`…, with `.key` for table lookup); the jovem
+  table sits alongside purpose tables under the `JOVEM_TABLE` key, as in the JS.
+- JS `roundCurrency(-0.005)` returns `-0`, the JVM `0.0`. JSON writes both as `0`,
+  so parity is unaffected; documented in Rounding.kt and pinned in RoundingTest.
+- The JS `else if (buyer.isYoungunEligible && globalYoungun)` guard drops its
+  always-truthy second operand in Kotlin — same semantics, noted here for the
+  record.
+- The oracle's "current year" test reads the wall clock; the port keeps that
+  (and its 2027 time bomb, when RAW_IMT_DATA will lack the year) faithfully —
+  flagged in a test comment rather than fixed, per the no-deviation rule.
+
+**Next step:** Wire `ParityTest.kt`: load `oracle/golden.json`, map the JS naming
+(`youngun*`, string purposes/locations, null-for-Infinity) at the boundary, run all
+11,640 cases through `calculateImt`, and compare exactly.
