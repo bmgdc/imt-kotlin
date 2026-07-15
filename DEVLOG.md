@@ -289,3 +289,59 @@ DEVLOG entry.
 **State:** The port is complete and packaged — domain (11,640-case parity), API,
 frontend, Docker image, README, CI. The only open placeholder is the live
 deployment URL in the README, to be filled once deployed.
+
+## 2026-07-16 — Session 06: CI fix + request logging
+
+**Goal:** Per `prompts/06-ci-and-logging.md`, two independent operational fixes as
+two separate commits: (1) CI failing before any test ran, (2) the server logging
+nothing per request. Verify locally and confirm CI actually goes green.
+
+**Fix 1 — CI "Permission denied" (exit 126).** `gradlew` was tracked as git mode
+`100644`, so it checked out non-executable on the Linux runner and `./gradlew test`
+died before running. This mount has `core.filemode=false`, so `chmod +x` would not
+change git's record; used `git update-index --chmod=+x gradlew` to set `100755` in
+the index (confirmed with `git ls-files --stage gradlew`). Committed alone — a pure
+mode change, no content.
+
+**Fix 2 — one log line per request.** Added `ktor-server-call-logging`, installed
+`CallLogging` in `Application.module()` with a compact format
+(`"<status> <METHOD> <path>"`), and added `src/main/resources/logback.xml` (console
+appender, root INFO, `io.netty` pinned to WARN). Without a logback config the server
+had been using logback's default DEBUG root, which is what produced the Netty DEBUG
+flood seen in earlier sessions' run logs; root INFO + the Netty override fixes both
+problems at once. `CallLoggingTest` captures the test `Application` and asserts
+`pluginOrNull(CallLogging)` is present while a request still routes — one assertion
+on the wiring, no framework-internals testing. Committed separately.
+
+**Verification:**
+
+- `./gradlew clean test`: **BUILD SUCCESSFUL, 11,697 tests, 0 failures** (the prior
+  11,696 + the new CallLogging test).
+- `./gradlew run` + curl: startup is clean (no DEBUG flood) and each request prints
+  one line — observed `200 GET /health`, `200 POST /api/imt`,
+  `200 GET /api/tables/2026/mainland`, `200 GET /`, and `404 GET /api/tables/1999/mainland`.
+- **CI confirmed green**, not assumed: pushed, then `gh run watch --exit-status`
+  returned 0 and `gh run view` reports `conclusion: success` for the HEAD commit
+  (`b816001`), run
+  [29459922351](https://github.com/bmgdc/imt-kotlin/actions/runs/29459922351). The
+  immediately-preceding run ("Update README") was the red one that failed at
+  `./gradlew test` — so fix 1 is proven by CI actually reaching and passing that step.
+  (Benign GitHub-side annotation only: Node 20 actions being run on Node 24.)
+
+**Surprises / notes:**
+
+- The now-familiar stale-Gradle-lock and orphaned-`:8080`-server problems recurred and
+  cost time: a `./gradlew test` failed on a file-hash-cache lock held by an orphaned
+  single-use daemon, and the first `./gradlew run` hit "Address already in use" because
+  an earlier session's `ServerKt` (pre-logging build) still held :8080 — my curls were
+  hitting that stale server, so no new log lines appeared until I killed it and
+  restarted. Reaped the whole tree explicitly this time. Standing lesson: background
+  `./gradlew run` must be torn down process-tree-wide, and a leftover server silently
+  serves *old* code.
+- `git push` needed to run outside the harness sandbox (SSH host-key verification
+  failed inside it). `gh auth status` reported an invalid token, but `gh run list` /
+  `watch` / `view` worked regardless.
+
+**State:** Both fixes shipped and independently reviewable; CI is green on `master`.
+The port remains complete end to end. Only open placeholder: the live-URL line in the
+README (the deployment itself is outside this repo's scope).
