@@ -1,0 +1,21 @@
+# Build output and caches
+build/
+.gradle/
+
+# VCS and editor state
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+
+# Not needed to build or run the app (tests run in CI; docs/reference are
+# provenance material, and golden.json is ~11 MB of test fixtures).
+oracle/
+frontend-reference/
+prompts/
+DEVLOG.md
+README.md
+Dockerfile
+.dockerignore
+.github/
