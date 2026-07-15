@@ -179,3 +179,62 @@ record the count, commit. No fixing failures this session.
 session: wire the Ktor API routes (`POST /api/imt`, `GET /api/tables/{year}/{location}`)
 against the now-verified engine, or start the static frontend per
 `frontend-reference/NOTES.md`.
+
+## 2026-07-15 — Session 04: API + frontend
+
+**Goal:** Per `prompts/04-api-frontend.md`: expose the engine over HTTP
+(`POST /api/imt`, `GET /api/tables/{year}/{location}`), route tests including a
+golden.json cross-check, then the static frontend emulating
+`frontend-reference/` per its NOTES.md, verified end to end in a real browser.
+
+**What happened:**
+
+- API (`api/Dtos.kt`, `api/Routes.kt`): POST takes the calculateImt shape with
+  jovem naming; unknown year/location/purpose and structurally invalid bodies
+  get 400s with self-explanatory messages (available options listed). GET
+  tables returns the enriched tables + `nonResidentRate`, with unbounded `upTo`
+  as null — the Infinity/null conversion lives only in the DTO mapper, per the
+  boundary convention. Unknown year/location on the GET return 404 (resource
+  semantics for path segments; the prompt's 400 requirement applies to POST),
+  non-integer year 400.
+- Route tests: 9 tests, among them a field-by-field cross-check of
+  `2026/mainland/hpp/pair-nonresident-standard/none/264443` (the richest output
+  shape: 0.7/0.3 pair, non-resident flat rate + refund live) against the API
+  response, with the youngun→jovem mapping at the boundary.
+- Frontend (`static/index.html` + `app.js`): layout, strings (verbatim,
+  including all six legal tooltips), and interaction rules ported from the
+  React reference — purpose-change side effects, mutually exclusive exemptions
+  and buyer flags with their disable rules, share management (+ buyer gets the
+  remaining share, back-to-one resets to 1), share-sum warning, details toggle,
+  reference-table display rules and row rendering (active-bracket highlight,
+  Isento badge, "Valor de Aquisição" for single flat rows). Server-side twist
+  per NOTES.md: ~250 ms debounced POST /api/imt, tables fetched per location
+  change (year is fixed to the calendar year, as in the original), `upTo: null`
+  decoded back to Infinity client-side.
+- One deliberate divergence from naive emulation: share inputs update state
+  without a full re-render (a React-style rebuild would blur the input on each
+  keystroke); the warning box and results still update live. Everything else
+  re-renders like the original.
+- **E2E in real Chrome** (playwright-core driving system Chrome headless against
+  `./gradlew run` on :8080): three scenarios, 30 checks, all passed —
+  (A) single jovem hpp 300 000 → 0€/0€/0€, flag exclusivity, jovem-only teal
+  table with Isento highlight; (B) 50/50 standard + non-resident hpp 400 000 →
+  24 118.33€/3 200€/27 318.33€, refund note 5 881.67€, two-row breakdown,
+  standard-only table; (C) islands rustic 230 000 → 11 500€/1 840€/13 340€,
+  purpose side effects (leaving hpp clears jovem; jovem/non-resident/post-rehab
+  disabled for rustic), single flat row showing the price. Screenshot reviewed —
+  styling (Tailwind Play CDN) renders correctly.
+
+**Environment notes (sandbox-specific, for the record):**
+
+- npm needed `--cache` pointed at a writable dir (`~/.npm/_cacache` is read-only
+  here) and `--no-bin-links`.
+- Chrome could not launch inside the harness sandbox (Unix socket creation
+  blocked → process-singleton FATAL); the E2E run and the server it targeted ran
+  outside it. A first server start silently died with its parent shell — moved to
+  the harness's background-task mechanism instead.
+
+**Next step:** The port is functionally complete: domain (11,640-case parity),
+API, and frontend. Remaining housekeeping candidates: README rewrite per the
+honesty rules (plain statement of provenance and process), and a final
+`./gradlew test` + `run` pass on a clean checkout.
